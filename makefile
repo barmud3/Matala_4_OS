@@ -5,7 +5,7 @@ CXXFLAGS = -Wall -Wextra -std=c++17
 
 all: react_server
 
-react_server: Server.cpp libst_reactor.so
+react_server: react_server.cpp libst_reactor.so
 	$(CXX) $(CXXFLAGS) -o react_server Server.cpp -L. -lst_reactor -lstdc++ -ldl -pthread
 
 libst_reactor.so: st_reactor.cpp st_reactor.hpp
