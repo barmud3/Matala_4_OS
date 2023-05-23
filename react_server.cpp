@@ -1,3 +1,4 @@
+#include "st_reactor.hpp"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,19 +10,19 @@
 #include <netdb.h>
 #include <poll.h>
 #include <vector>
-#include "st_reactor.hpp"
 #include <dlfcn.h>
 #include <iostream>
 using namespace std;
 
-#define PORT "9034"   // Port we're listening on
+#define PORT "9034"
+
 void handle_listen(int listener);
 void handle_clients(int fd);
 
 
-static pReactor ourReactor = static_cast<pReactor>(createReactor());
+static pReactor ourReactor;
 
-// Get sockaddr, IPv4 or IPv6:
+// Get sockaddr
 void *get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -56,7 +57,7 @@ int get_listener_socket(void)
             continue;
         }
 
-        // Lose the pesky "address already in use" error message
+        // Reuse address
         setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
         if (bind(listener, p->ai_addr, p->ai_addrlen) < 0) {
@@ -82,10 +83,16 @@ int get_listener_socket(void)
     return listener;
 }
 
-// Main
+
+
 int main(void)
 {
-    int listener;     // Listening socket descriptor
+
+    // Create reactor
+    ourReactor = static_cast<pReactor>(createReactor());
+    
+    // Listening socket fd
+    int listener; 
 
     // Set up and get a listening socket
     listener = get_listener_socket();
@@ -93,33 +100,42 @@ int main(void)
         fprintf(stderr, "error getting listening socket\n");
         exit(1);
     }
-    
+
+    cout << "Chat is open!" << endl;
+
+    // Start the reactor
     startReactor(ourReactor);
-    addFd(ourReactor,listener,handle_listen); //adding listener fd.
+
+    // Add the listening socket fd to the fds data structure using the reactor
+    addFd(ourReactor,listener,handle_listen);
+
+    // Wait for the reactor thread to finish his work
     WaitFor(ourReactor);
-    
     
 return 0;
 }
 
-
-
 void handle_listen(int listener){
 
-    struct sockaddr_storage remoteaddr; // Client address
+    // Client address
+    struct sockaddr_storage remoteaddr;
     socklen_t addrlen;
+
+    // Prepering a new fd for the client socket
     int newfd; 
     char remoteIP[INET6_ADDRSTRLEN];     
-
     addrlen = sizeof(remoteaddr);
+
+    // Accept for the client socket fd
     newfd = accept(listener,(struct sockaddr *)&remoteaddr,&addrlen);
     if (newfd == -1) {
     perror("accept");
     } else {
+        // If succeed, add the socket fd to the fds data structure using the reactor
         addFd(ourReactor,newfd,handle_clients);
-    printf("New connection from %s on ""socket %d\n",
-    inet_ntop(remoteaddr.ss_family,
-    get_in_addr((struct sockaddr *)&remoteaddr),remoteIP, INET6_ADDRSTRLEN),newfd);
+        printf("New client has joined the chat from %s on ""socket %d\n",
+        inet_ntop(remoteaddr.ss_family,
+        get_in_addr((struct sockaddr *)&remoteaddr),remoteIP, INET6_ADDRSTRLEN),newfd);
     }
 }
 
@@ -134,15 +150,15 @@ void handle_clients(int fd)
         // Got error or connection closed by client
         if (nbytes == 0) {
             // Connection closed
-            printf("pollserver: socket %d hung up\n", sender_fd);
+            printf("Server: socket %d hung up\n", sender_fd);
         } else {
             perror("recv");
         }
 
     } else {
-        // We got some good data from a client
+        // We got some data from a client
         for (size_t j = 0; j < ourReactor->fd_handlers.size(); j++) {
-            // Send to everyone!
+            // Send to everyone
             int dest_fd = ourReactor->fd_handlers[j].first;
 
             // Except the listener and ourselves
