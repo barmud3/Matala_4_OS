@@ -1,10 +1,13 @@
 #ifndef ASSIGNMENT4_ST_REACTOR_HPP
 #define ASSIGNMENT4_ST_REACTOR_HPP
 
-#include <poll.h>
+#include <iostream>
 #include <vector>
 #include <pthread.h>
-#include <iostream>
+#include <poll.h>
+#include <unistd.h>
+#include <functional>
+#include <algorithm>
 using namespace std;
 
 typedef void (*handler_t)(int);
